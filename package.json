@@ -1,0 +1,29 @@
+{
+  "name": "watch_rename",
+  "version": "1.0.0",
+  "description": "画像ファイルの名前をバーコードの番号にリネーム",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node main"
+  },
+  "keywords": [
+    "バーコード",
+    "フォルダー監視"
+  ],
+  "author": "kakicg",
+  "license": "ISC",
+  "dependencies": {
+    "@moneyforward/stream-util": "^0.1.4",
+    "chokidar": "^3.4.3",
+    "date-utils": "^1.2.21",
+    "dotenv": "^8.2.0",
+    "jimp": "^0.16.1",
+    "log4js": "^6.3.0",
+    "mathjs": "^9.3.2",
+    "sharp": "^0.26.3"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.7"
+  }
+}

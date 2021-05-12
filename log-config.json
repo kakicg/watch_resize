@@ -1,0 +1,37 @@
+{
+    "appenders": {
+      "console": {
+        "type": "console"
+      },
+      "system": {
+        "type": "file",
+        "filename": "../watch_composit_log/system.log",
+        "backups": "20",
+        "maxLogSize": 5000000,
+        "compress": true
+      },
+      "warn": {
+        "type": "file",
+        "filename": "../warn.log",
+        "backups": "3",
+        "maxLogSize": 5000000,
+        "compress": false
+      }
+
+    },
+    "categories": {
+      "default": {
+        "appenders": [
+          "console",
+          "system"
+        ],
+        "level": "all"
+      },
+      "warn": {
+        "appenders": [
+          "warn"
+        ],
+        "level": "error"
+      }
+    }
+}
