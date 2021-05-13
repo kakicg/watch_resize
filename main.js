@@ -27,21 +27,71 @@ if (!fs.existsSync(watch_dir) ) {
 //写真供給フォルダーのクリア
 sys.clear_folder(watch_dir)
 
+//リサイズ画像のフォルダー
+let resized_dir = env.RESIZED_DIR
+if (!fs.existsSync(resized_dir) ) {
+    eventLogger.error(`画像書込み側のネットワーク(${resized_dir})に接続されていません。`);
+    resized_dir = "../resized"
+    sys.check_dir(resized_dir)
+}
+
+//元画像のフォルダー
+let original_dir = env.ORIGINAL_DIR
+if (!fs.existsSync(resized_dir) ) {
+    eventLogger.error(`画像書込み側のネットワーク(${original_dir})に接続されていません。`);
+    original_dir = "../original"
+    sys.check_dir(original_dir)
+}
+
 eventLogger.info(`写真供給フォルダー: ${watch_dir}`)
 
 const sharp = require('sharp')
 const { resolve } = require('path')
-const threashold = 30
 const testWidth = 200
+const testHeight = 200
+const finalWidth = 1200;
 const readImageFromFileToBuffer = ( file )=> {
+    const image = sharp(file)
     return new Promise( resolve=> {
-        sharp(file).resize(testWidth).raw().toBuffer()
-            .then( (data) => {
-                resolve(data)
-            })
-            .catch(function(err) {
-                console.log(err);
-            })
+        image
+        .metadata().then(function(metadata) {
+            width = Math.round(metadata.width/2);
+            height = metadata.height;
+            offset_x = Math.round( width/2 );
+            offset_y = 0;  
+            return image.extract({ left: offset_x, top: offset_y, width: width, height: height })
+            .resize(testWidth,testHeight,{fit: 'fill'})
+            .raw().toBuffer()
+        })
+        .then( (data) => {
+            resolve(data)
+        })
+        .catch(function(err) {
+            console.log(err);
+            reject(err)
+        })
+    })
+}
+const resizeImageFromFileToFile = ( file, grade, resizedImage )=> {
+    const image = sharp(file)
+    return new Promise( resolve=> {
+        image
+        .metadata().then(function(metadata) {
+            width = Math.round(metadata.width/10*grade)
+            height = Math.round(metadata.height/10*grade)
+            offset_x = Math.round( (metadata.width-width)/2 );
+            offset_y = metadata.height - height  
+            return image.extract({ left: offset_x, top: offset_y, width: width, height: height })
+            .resize(finalWidth)
+            .jpeg().toFile(resizedImage)
+        })
+        .then( () => {
+            resolve()
+        })
+        .catch(function(err) {
+            console.log(err);
+            reject(err)
+        })
     })
 }
 const absDifference = ( back, front ) => {
@@ -81,39 +131,29 @@ const absDifference = ( back, front ) => {
         // resolve(newBuffer)
     })
 }
-let differenceData
-async function eveluateImage(newImage) {
-    const bgImageData = await readImageFromFileToBuffer('./images/bg.jpg')
-    console.log(`bgImageData[${bgImageData.length}]`)
+let bgImageData
+async function eveluateImage(newImage, resizedImage) {
+    // bgImageData = await readImageFromFileToBuffer('./images/bg.jpg')
+    // console.log(`bgImageData[${bgImageData.length}]`)
 
     const newImageData = await readImageFromFileToBuffer(newImage)
     console.log(`newImageData[${newImageData.length}]`)
 
     const grade = await absDifference(bgImageData,newImageData)
     console.log(`grade[${grade}]`)
+    resizeImageFromFileToFile(newImage, grade, resizedImage )
     // const img = sharp(Uint8Array.from(differenceData), {raw: {width: 10, height:1, channels: 3 }})
    
     // await img .jpeg().toFile('./output.jpg')
 }
-eveluateImage('./images/10.jpg')
+// eveluateImage('./images/10.jpg')
     
-let bg_image_data = []
-
 readImageFromFileToBuffer('./images/bg.jpg')
 .then((data) => {
-    bg_image_data = data
+    bgImageData = data
 })
 .then(() => {
-    console.log(`bg_image_data[${bg_image_data.length}]`)
-
-    sharp('./images/a.jpg').resize(400).raw().toBuffer()
-            .then( (data) => {
-                resolve("ok")
-
-            })
-            .catch(function(err) {
-                console.log(err);
-            })
+    console.log(`bgImageData[[${bgImageData.length}]]`)
 })
 
 
@@ -123,33 +163,9 @@ const watcher = chokidar.watch(watch_dir+"/",{
     persistent:true
 })
 
-async function composit(src, dest, frames) {
-    const image = sharp(src)
-
-    image
-        .resize( 100, 40, {
-            // fit: 'outside'
-            fit: 'cover'
-        } )
-        .raw()
-        .toBuffer()
-        .then( (data) => {
-            for ( let i=0; i<60; i += 3) {
-                console.log(`red:${data[i]}, green: ${data[i+1]}, blue: ${data[i+2]}`)
-                image_data.push(data[i])
-                image_data.push(data[i+1])
-                image_data.push(data[i+2])
-            }
-            return new Promise((resolve, reject) => {
-                resolve(data);
-              });
-        })
-        .catch(function(err) {
-            console.log(err);
-        })
-}
 //監視イベント
-watcher.on('ready',function(){
+
+ watcher.on('ready',function(){
 
     //準備完了
     // console.clear()
@@ -164,15 +180,12 @@ watcher.on('ready',function(){
         eventLogger.info(`追加されたファイル: ${new_name}`)          
         let exts = new_name.split(".")
         let src = watch_dir + "/" + new_name
-        let dest = print_dir + "/" + new_name
+        let dest = resized_dir + "/" + new_name
 
         if(exts.length>1) {
             ext=exts[exts.length-1]
             if (ext.toUpperCase() ==="JPG" || ext.toUpperCase() === "JPEG") {
-                const a = `${frame_dir}/frame01.png`
-                composit(src, dest, [{input: a}]).then((data)=>{
-                    console.log(data.length)
-                })
+                eveluateImage(src, dest)
            　}
         }
    })
