@@ -98,6 +98,7 @@ const keepOriginal = (fileName) => {
     const image = sharp(`${watch_dir}/${fileName}`)
     return new Promise( (resolve, reject)=> {
         image
+        .resize(finalWidth)
         .toFile(`${original_dir}/${fileName}`)
         .then( () => {
             resolve()
