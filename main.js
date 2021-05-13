@@ -18,7 +18,7 @@ log4js.configure("log-config.json")
 const eventLogger = log4js.getLogger('event')
 
 //監視するフォルダーの相対パス
-let watch_dir = env.WATCH_DIR
+let watch_dir = env.WATCH_DIR || '../watch'
 if (!fs.existsSync(watch_dir) ) {
     eventLogger.error(`写真供給側のネットワーク(${watch_dir})に接続されていません。`)
     watch_dir = "../watch"
@@ -28,7 +28,7 @@ if (!fs.existsSync(watch_dir) ) {
 sys.clear_folder(watch_dir)
 
 //リサイズ画像のフォルダー
-let resized_dir = env.RESIZED_DIR
+let resized_dir = env.RESIZED_DIR || '../resized'
 if (!fs.existsSync(resized_dir) ) {
     eventLogger.error(`画像書込み側のネットワーク(${resized_dir})に接続されていません。`);
     resized_dir = "../resized"
@@ -36,7 +36,7 @@ if (!fs.existsSync(resized_dir) ) {
 }
 
 //元画像のフォルダー
-let original_dir = env.ORIGINAL_DIR
+let original_dir = env.ORIGINAL_DIR || '../original'
 if (!fs.existsSync(resized_dir) ) {
     eventLogger.error(`画像書込み側のネットワーク(${original_dir})に接続されていません。`);
     original_dir = "../original"
@@ -72,8 +72,8 @@ const readImageFromFileToBuffer = ( file )=> {
         })
     })
 }
-const resizeImageFromFileToFile = ( file, grade, resizedImage )=> {
-    const image = sharp(file)
+const resizeImageFromFileToFile = ( fileName, grade )=> {
+    const image = sharp(`${watch_dir}/${fileName}`)
     return new Promise( resolve=> {
         image
         .metadata().then(function(metadata) {
@@ -83,9 +83,10 @@ const resizeImageFromFileToFile = ( file, grade, resizedImage )=> {
             offset_y = metadata.height - height  
             return image.extract({ left: offset_x, top: offset_y, width: width, height: height })
             .resize(finalWidth)
-            .jpeg().toFile(resizedImage)
+            .jpeg().toFile(`${resized_dir}/${fileName}`)
         })
         .then( () => {
+            image.toFile(`${original_dir}/${fileName}`)
             resolve()
         })
         .catch(function(err) {
@@ -131,23 +132,22 @@ const absDifference = ( back, front ) => {
         // resolve(newBuffer)
     })
 }
-let bgImageData
-async function eveluateImage(newImage, resizedImage) {
+async function eveluateImage(fileName) {
     // bgImageData = await readImageFromFileToBuffer('./images/bg.jpg')
     // console.log(`bgImageData[${bgImageData.length}]`)
 
-    const newImageData = await readImageFromFileToBuffer(newImage)
+    const newImageData = await readImageFromFileToBuffer(`${watch_dir}/${fileName}`)
     console.log(`newImageData[${newImageData.length}]`)
 
     const grade = await absDifference(bgImageData,newImageData)
     console.log(`grade[${grade}]`)
-    resizeImageFromFileToFile(newImage, grade, resizedImage )
+    resizeImageFromFileToFile(fileName, grade )
     // const img = sharp(Uint8Array.from(differenceData), {raw: {width: 10, height:1, channels: 3 }})
    
     // await img .jpeg().toFile('./output.jpg')
 }
 // eveluateImage('./images/10.jpg')
-    
+let bgImageData
 readImageFromFileToBuffer('./images/bg.jpg')
 .then((data) => {
     bgImageData = data
@@ -179,13 +179,11 @@ const watcher = chokidar.watch(watch_dir+"/",{
         const new_name = path.basename(file_name)
         eventLogger.info(`追加されたファイル: ${new_name}`)          
         let exts = new_name.split(".")
-        let src = watch_dir + "/" + new_name
-        let dest = resized_dir + "/" + new_name
 
         if(exts.length>1) {
             ext=exts[exts.length-1]
             if (ext.toUpperCase() ==="JPG" || ext.toUpperCase() === "JPEG") {
-                eveluateImage(src, dest)
+                eveluateImage(new_name)
            　}
         }
    })
