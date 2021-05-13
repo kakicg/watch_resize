@@ -45,7 +45,7 @@ exports.clear_folder = (dir) => {
 }
 exports.remove_file = (file) => {
     if ( fs.existsSync(file) ) {
-        fs.unlink( file, (err => {
+        fs.unlinkSync( file, (err => {
             if (err) console.log(err);
             else {
               console.log(`${file}を削除しました。`);

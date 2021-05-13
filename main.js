@@ -52,7 +52,7 @@ const testHeight = 200
 const finalWidth = 1200;
 const readImageFromFileToBuffer = ( file )=> {
     const image = sharp(file)
-    return new Promise( resolve=> {
+    return new Promise( (resolve, reject)=> {
         image
         .metadata().then(function(metadata) {
             width = Math.round(metadata.width/2);
@@ -74,7 +74,7 @@ const readImageFromFileToBuffer = ( file )=> {
 }
 const resizeImageFromFileToFile = ( fileName, grade )=> {
     const image = sharp(`${watch_dir}/${fileName}`)
-    return new Promise( resolve=> {
+    return new Promise( (resolve, reject)=> {
         image
         .metadata().then(function(metadata) {
             width = Math.round(metadata.width/10*grade)
@@ -86,7 +86,6 @@ const resizeImageFromFileToFile = ( fileName, grade )=> {
             .jpeg().toFile(`${resized_dir}/${fileName}`)
         })
         .then( () => {
-            image.toFile(`${original_dir}/${fileName}`)
             resolve()
         })
         .catch(function(err) {
@@ -94,6 +93,21 @@ const resizeImageFromFileToFile = ( fileName, grade )=> {
             reject(err)
         })
     })
+}
+const keepOriginal = (fileName) => {
+    const image = sharp(`${watch_dir}/${fileName}`)
+    return new Promise( (resolve, reject)=> {
+        image
+        .toFile(`${original_dir}/${fileName}`)
+        .then( () => {
+            resolve()
+        })
+        .catch(function(err) {
+            console.log(err);
+            reject(err)
+        })
+    })
+
 }
 const absDifference = ( back, front ) => {
     return new Promise( resolve => {
@@ -127,9 +141,17 @@ const absDifference = ( back, front ) => {
                 
             }
         }
-        
         resolve(grade)
-        // resolve(newBuffer)
+    })
+}
+const removeFile = ( path )=> {
+    return new Promise( (resolve) => {
+        try {
+            sys.remove_file(path)
+            resolve()
+        } catch {
+            reject()
+        }
     })
 }
 async function eveluateImage(fileName) {
@@ -137,16 +159,12 @@ async function eveluateImage(fileName) {
     // console.log(`bgImageData[${bgImageData.length}]`)
 
     const newImageData = await readImageFromFileToBuffer(`${watch_dir}/${fileName}`)
-    console.log(`newImageData[${newImageData.length}]`)
-
     const grade = await absDifference(bgImageData,newImageData)
     console.log(`grade[${grade}]`)
-    resizeImageFromFileToFile(fileName, grade )
-    // const img = sharp(Uint8Array.from(differenceData), {raw: {width: 10, height:1, channels: 3 }})
-   
-    // await img .jpeg().toFile('./output.jpg')
+    await resizeImageFromFileToFile(fileName, grade )
+    await keepOriginal(fileName)
+    await removeFile(`${watch_dir}/${fileName}`)
 }
-// eveluateImage('./images/10.jpg')
 let bgImageData
 readImageFromFileToBuffer('./images/bg.jpg')
 .then((data) => {

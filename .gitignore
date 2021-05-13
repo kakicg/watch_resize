@@ -3,6 +3,7 @@
 node_modules/
 renamed/
 log/
+images/
 package-lock.json
 test*
 **.log
