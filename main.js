@@ -37,7 +37,7 @@ if (!fs.existsSync(resized_dir) ) {
 
 //元画像のフォルダー
 let original_dir = env.ORIGINAL_DIR || '../original'
-if (!fs.existsSync(resized_dir) ) {
+if (!fs.existsSync(original_dir) ) {
     eventLogger.error(`画像書込み側のネットワーク(${original_dir})に接続されていません。`);
     original_dir = "../original"
     sys.check_dir(original_dir)
