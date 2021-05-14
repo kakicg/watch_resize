@@ -146,7 +146,7 @@ const absDifference = ( back, front ) => {
     })
 }
 const removeFile = ( path )=> {
-    return new Promise( (resolve) => {
+    return new Promise( (resolve, reject) => {
         try {
             sys.remove_file(path)
             resolve()
