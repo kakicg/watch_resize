@@ -98,7 +98,7 @@ const resizeImageFromFileToFile = ( fileName, bbox )=> {
                 console.log(`right_x: ${right_x}, bottom_y: ${bottom_y}, width: ${width}, height: ${height}`)
                 return image
                         .extract({ left: offset_x, top: offset_y, width: width, height: height })
-                        .resize(finalWidth)
+                        .resize(null, finalWidth)
                         .jpeg()
                         .toFile(`${resized_dir}/resized_${fileName}`)
                         // .toBuffer()
