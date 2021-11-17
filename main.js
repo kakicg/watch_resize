@@ -9,6 +9,11 @@ const fs = require("fs")
 const path = require("path")
 const sys = require("./systemController")
 const chokidar = require("chokidar")
+const readline = require('readline').createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: false
+})
 
 require('date-utils')
 //ログ記録
@@ -50,16 +55,20 @@ const { resolve } = require('path')
 const testWidth = 200
 const testHeight = 200
 const finalWidth = 1200;
+
+// readImageFromFileToBuffer : Promise を返す
 const readImageFromFileToBuffer = ( file )=> {
     const image = sharp(file)
     return new Promise( (resolve, reject)=> {
         image
         .metadata().then(function(metadata) {
-            width = Math.round(metadata.width/2);
-            height = metadata.height;
-            offset_x = Math.round( width/2 );
-            offset_y = 0;  
-            return image.extract({ left: offset_x, top: offset_y, width: width, height: height })
+            // width = Math.round(metadata.width/2);
+            // height = metadata.height;
+            // offset_x = Math.round( width/2 );
+            // offset_y = 0;  
+            return image
+            .blur()
+            // .extract({ left: offset_x, top: offset_y, width: width, height: height })
             .resize(testWidth,testHeight,{fit: 'fill'})
             .raw().toBuffer()
         })
@@ -72,18 +81,27 @@ const readImageFromFileToBuffer = ( file )=> {
         })
     })
 }
-const resizeImageFromFileToFile = ( fileName, grade )=> {
+const resizeImageFromFileToFile = ( fileName, bbox )=> {
     const image = sharp(`${watch_dir}/${fileName}`)
     return new Promise( (resolve, reject)=> {
         image
         .metadata().then(function(metadata) {
-            width = Math.round(metadata.width/10*grade)
-            height = Math.round(metadata.height/10*grade)
-            offset_x = Math.round( (metadata.width-width)/2 );
-            offset_y = metadata.height - height  
-            return image.extract({ left: offset_x, top: offset_y, width: width, height: height })
-            .resize(finalWidth)
-            .jpeg().toFile(`${resized_dir}/${fileName}`)
+            const 
+                offset_x = Math.round( bbox.x * metadata.width/testWidth ),
+                right_x = Math.round( (testWidth - bbox.x - bbox.width ) * metadata.width/testWidth ),
+                offset_y = Math.round( bbox.y * metadata.width/testHeight ),
+                bottom_y = Math.round( (testHeight - bbox.y - bbox.height ) * metadata.height/testHeight ),
+                width = Math.round((metadata.width - right_x - offset_x) ),
+                height = Math.round((metadata.height - bottom_y - offset_y) )
+                console.log(`metadata.width: ${metadata.width}, metadata.height: ${metadata.height}`)
+                console.log(`offset_x: ${offset_x}, offset_y: ${offset_y}, width: ${width}, height: ${height}`)
+                console.log(`right_x: ${right_x}, bottom_y: ${bottom_y}, width: ${width}, height: ${height}`)
+                return image
+                        .extract({ left: offset_x, top: offset_y, width: width, height: height })
+                        .resize(finalWidth)
+                        .jpeg()
+                        .toFile(`${resized_dir}/resized_${fileName}`)
+                        // .toBuffer()
         })
         .then( () => {
             resolve()
@@ -110,39 +128,60 @@ const keepOriginal = (fileName) => {
     })
 
 }
-const absDifference = ( back, front ) => {
+
+// boundingBox : Bounding Box を返す
+const boundingBox = ( back, front ) => {
     return new Promise( resolve => {
-        const newBuffer=[]
-        let index=0;
+        const difBufferR=[],
+              difBufferG=[],
+              difBufferB=[]
+        let index=0
         while(index<front.length) {
-            newBuffer.push(Math.abs(back[index]-front[index]))
+            const dif = Math.abs(back[index]-front[index])
+            if( index % 3 === 0 ) {
+                difBufferR.push(dif)
+            } else if( index % 3 === 1 ) {
+                difBufferG.push(dif)
+            } else {
+                difBufferB.push(dif)
+            }
             index++
         }
-        const max = newBuffer.reduce((a,b)=>a>b?a:b)
-        const min = newBuffer.reduce((a,b)=>a<b?a:b)
-        const normalizedThreashold = (max+min)/5
-        console.log(`max:${max}`)
-        console.log(`min:${min}`)
-        console.log(`normalizedThreashold:${normalizedThreashold}`)
-        let flag = true
-        const height = newBuffer.length/(testWidth*3)
-        let grade
-        for (let i=0; i<height; i++) {
+        const r_max = difBufferR.reduce((a,b)=>a>b?a:b),
+              r_min = difBufferR.reduce((a,b)=>a<b?a:b),
+              g_max = difBufferG.reduce((a,b)=>a>b?a:b),
+              g_min = difBufferR.reduce((a,b)=>a<b?a:b),
+              b_max = difBufferB.reduce((a,b)=>a>b?a:b),
+              b_min = difBufferB.reduce((a,b)=>a<b?a:b)
+        const normalizedRThreashold = (r_max+r_min)/4,
+              normalizedGThreashold = (g_max+g_min)/4,
+              normalizedBThreashold = (b_max+b_min)/4
+        let x_max=0, y_max=0, x_min=testWidth, y_min=testHeight
+        console.log(`r_max:${r_max}, r_min:${r_min}, normalizedRThreashold:${normalizedRThreashold}`)
+        console.log(`g_max:${g_max}, g_min:${g_min}, normalizedGThreashold:${normalizedGThreashold}`)
+        console.log(`b_max:${b_max}, b_min:${b_min}, normalizedBThreashold:${normalizedBThreashold}`)
+        for (let i=0; i<testHeight; i++) {
             for ( let j=0; j<testWidth; j++) {
-                for ( let k=0; k<3; k++) {
-                    let index = (testWidth*i + j)*3+k
-                    let value = newBuffer[index]
-                    
-                    if(flag && value>normalizedThreashold) {
-                        console.log(`[${index}]`)
-                        grade = Math.ceil(((newBuffer.length - index)/newBuffer.length)*10)
-                        flag = false
-                    }
-                }
-                
+                index = testWidth*i + j
+                const r_value = difBufferR[index],
+                      g_value = difBufferG[index],
+                      b_value = difBufferB[index]
+                const x_pos = index % testWidth,
+                      y_pos = Math.floor(index / testWidth)
+
+                if( r_value>normalizedRThreashold 
+                    || g_value>normalizedGThreashold 
+                    || r_value>normalizedBThreashold) {
+                        x_max = ( (x_pos > x_max) ? x_pos: x_max )
+                        x_min = ( (x_pos < x_min) ? x_pos: x_min )
+                        y_max = ( (y_pos > y_max) ? y_pos: y_max )
+                        y_min = ( (y_pos < y_min) ? y_pos: y_min )
+                    }                
             }
         }
-        resolve(grade)
+        const bbox = {x:x_min, y: y_min, width: x_max-x_min, height: y_max - y_min}
+        console.log(`{x:${x_min}, y: ${y_min}, width: ${x_max-x_min}, height: ${y_max - y_min}}`)
+        resolve(bbox)
     })
 }
 const removeFile = ( path )=> {
@@ -155,17 +194,7 @@ const removeFile = ( path )=> {
         }
     })
 }
-async function eveluateImage(fileName) {
-    // bgImageData = await readImageFromFileToBuffer('./images/bg.jpg')
-    // console.log(`bgImageData[${bgImageData.length}]`)
 
-    const newImageData = await readImageFromFileToBuffer(`${watch_dir}/${fileName}`)
-    const grade = await absDifference(bgImageData,newImageData)
-    console.log(`grade[${grade}]`)
-    await resizeImageFromFileToFile(fileName, grade )
-    await keepOriginal(fileName)
-    await removeFile(`${watch_dir}/${fileName}`)
-}
 let bgImageData
 readImageFromFileToBuffer('./images/bg.jpg')
 .then((data) => {
@@ -174,6 +203,15 @@ readImageFromFileToBuffer('./images/bg.jpg')
 .then(() => {
     console.log(`bgImageData[[${bgImageData.length}]]`)
 })
+
+async function eveluateImage(fileName) {
+    const newImageData = await readImageFromFileToBuffer(`${watch_dir}/${fileName}`)
+    const bbox = await boundingBox(bgImageData,newImageData)
+    console.log(`bbox.x: ${bbox.x}, bbox.y: ${bbox.y}, bbox.width: ${bbox.width}, bbox.height: ${bbox.height}`)
+    await resizeImageFromFileToFile(fileName, bbox )
+    await keepOriginal(fileName)
+    await removeFile(`${watch_dir}/${fileName}`)
+}
 
 
 //chokidarの初期化
@@ -206,4 +244,32 @@ const watcher = chokidar.watch(watch_dir+"/",{
            　}
         }
    })
+
+    readline.on('line', function(line){
+        const cmd = line.toUpperCase();
+
+        if ( cmd === "" ) {
+            console.log("コマンドリスト\n");
+            console.log("    Q: 終了\n");
+            console.log("    C: 終了をキャンセル\n");
+
+        } else if ( cmd === "Q" ) {
+            // console.log("10秒後に終了します");
+            // timer = setTimeout( () => {
+            //     process.exit();
+            // }, 10000);
+            process.exit();
+
+
+        } else if ( cmd === "C") {
+            if (timer) {
+                new Promise(()=> {
+                    console.log("終了をキャンセルします");
+                    clearTimeout(timer); 
+                    timer = null;
+                })
+            }
+        } 
+    })
+    
 }) //watcher.on('ready',function(){
